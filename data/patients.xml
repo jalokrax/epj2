@@ -1,0 +1,14 @@
+<patients>
+  <patient>
+    <id>p-jx3fbj4</id>
+    <cpr>1605981158</cpr>
+    <name>Cathrine Terp Madsen</name>
+    <dob>1998-16-05</dob>
+  </patient>
+  <patient>
+    <id>p-anna</id>
+    <cpr>123456-7890</cpr>
+    <name>Anna Jensen</name>
+    <dob>1990-01-01</dob>
+  </patient>
+</patients>

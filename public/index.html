@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="da">
+  <head>
+    <meta charset="UTF-8" />
+    <title>EPJ – XML Demo</title>
+    <style>
+      body { font-family: system-ui, sans-serif; max-width: 900px; margin: 2rem auto; }
+      table { border-collapse: collapse; width: 100%; }
+      th, td { border: 1px solid #ccc; padding: 6px; }
+      form { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 8px; margin-bottom: 16px; }
+      .msg { color: #444; margin: 8px 0; }
+    </style>
+  </head>
+<hr>
+<h2>Kontakter (encounters)</h2>
+<div>
+  <input id="pid" placeholder="Patient-ID (fx p-anna)">
+  <button id="mkEncounter">Ny kontakt for patient</button>
+  <button id="loadEnc">Hent kontakter</button>
+</div>
+<ul id="encList"></ul>
+
+<h2>Noter</h2>
+<div>
+  <input id="eid" placeholder="Encounter-ID (fx e-...)">
+  <input id="author" placeholder="Forfatter (u-doc)">
+  <input id="noteText" placeholder="Tekst">
+  <button id="mkNote">Tilføj note</button>
+  <button id="loadNotes">Hent noter</button>
+</div>
+<ul id="noteList"></ul>
+
+<script>
+  const encList = document.getElementById("encList");
+  const noteList = document.getElementById("noteList");
+
+  document.getElementById("mkEncounter").onclick = async () => {
+    const pid = document.getElementById("pid").value.trim();
+    if (!pid) return alert("Angiv patient-id");
+    const res = await fetch(`/patients/${pid}/encounters`, { method:"POST", headers:{ "Content-Type":"application/xml" }, body:"<encounter/>" });
+    alert(res.ok ? "Kontakt oprettet" : await res.text());
+  };
+  document.getElementById("loadEnc").onclick = async () => {
+    const pid = document.getElementById("pid").value.trim();
+    if (!pid) return alert("Angiv patient-id");
+    const xml = await (await fetch(`/patients/${pid}/encounters`)).text();
+    const doc = new DOMParser().parseFromString(xml, "application/xml");
+    const items = [...doc.getElementsByTagName("encounter")];
+    encList.innerHTML = items.map(e => {
+      const get = t => e.getElementsByTagName(t)[0]?.textContent || "";
+      return `<li>${get("id")} – ${get("start")}</li>`;
+    }).join("") || "<li>Ingen kontakter</li>";
+  };
+
+  document.getElementById("mkNote").onclick = async () => {
+    const eid = document.getElementById("eid").value.trim();
+    const author = document.getElementById("author").value.trim() || "u-doc";
+    const text = document.getElementById("noteText").value.trim();
+    if (!eid || !text) return alert("Angiv encounter-id og tekst");
+    const body = `<note><author>${author}</author><text>${text}</text></note>`;
+    const res = await fetch(`/encounters/${eid}/notes`, { method:"POST", headers:{ "Content-Type":"application/xml" }, body });
+    alert(res.ok ? "Note oprettet" : await res.text());
+  };
+  document.getElementById("loadNotes").onclick = async () => {
+    const eid = document.getElementById("eid").value.trim();
+    if (!eid) return alert("Angiv encounter-id");
+    const xml = await (await fetch(`/encounters/${eid}/notes`)).text();
+    const doc = new DOMParser().parseFromString(xml, "application/xml");
+    const items = [...doc.getElementsByTagName("note")];
+    noteList.innerHTML = items.map(n => {
+      const get = t => n.getElementsByTagName(t)[0]?.textContent || "";
+      return `<li>${get("id")} – ${get("author")} – ${get("ts")} – ${get("text")}</li>`;
+    }).join("") || "<li>Ingen noter</li>";
+  };
+</script>
+
+  <body>
+    <h1>EPJ – XML (simpel JS)</h1>
+
+    <h2>Opret patient</h2>
+    <form id="f">
+      <input id="cpr" placeholder="CPR (fx 010101-0001)" />
+      <input id="name" placeholder="Navn" />
+      <input id="dob" placeholder="Fødselsdato (YYYY-MM-DD)" />
+      <button>Opret</button>
+    </form>
+    <div class="msg" id="msg"></div>
+
+    <h2>Patienter</h2>
+    <button id="reload">Opdater liste</button>
+    <table>
+      <thead><tr><th>ID</th><th>CPR</th><th>Navn</th><th>Født</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+
+    <script>
+      const rows = document.getElementById("rows");
+      const msg = document.getElementById("msg");
+
+      async function loadPatients() {
+        rows.innerHTML = "<tr><td colspan='4'>Henter...</td></tr>";
+        const res = await fetch("/patients");
+        const text = await res.text();
+        const xml = new DOMParser().parseFromString(text, "application/xml");
+        const list = Array.from(xml.getElementsByTagName("patient"));
+        rows.innerHTML = list.map(p => {
+          const get = t => p.getElementsByTagName(t)[0]?.textContent || "";
+          return `<tr><td>${get("id")}</td><td>${get("cpr")}</td><td>${get("name")}</td><td>${get("dob")}</td></tr>`;
+        }).join("") || "<tr><td colspan='4'>Ingen patienter.</td></tr>";
+      }
+
+      document.getElementById("reload").onclick = loadPatients;
+
+      document.getElementById("f").onsubmit = async (e) => {
+        e.preventDefault();
+        msg.textContent = "";
+        const cpr = document.getElementById("cpr").value.trim();
+        const name = document.getElementById("name").value.trim();
+        const dob = document.getElementById("dob").value.trim();
+        if (!cpr || !name || !dob) { msg.textContent = "Udfyld CPR, Navn og Dato"; return; }
+
+        const body = `<patient><cpr>${cpr}</cpr><name>${name}</name><dob>${dob}</dob></patient>`;
+        const res = await fetch("/patients", { method:"POST", headers:{ "Content-Type":"application/xml" }, body });
+        if (res.ok) {
+          msg.textContent = "Patient oprettet";
+          document.getElementById("cpr").value = "";
+          document.getElementById("name").value = "";
+          document.getElementById("dob").value = "";
+          loadPatients();
+        } else {
+          msg.textContent = "Fejl: " + await res.text();
+        }
+      };
+
+      loadPatients();
+    </script>
+  </body>
+</html>
